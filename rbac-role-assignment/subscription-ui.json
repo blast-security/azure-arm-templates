@@ -1,0 +1,95 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDefinition.MultiVm",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "basics": [
+      {
+        "name": "servicePrincipalObjectId",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Blast Collector Enterprise Application Object ID",
+        "toolTip": "Find in: Azure Portal > Entra ID > Enterprise Applications > search 'blast-collector' > copy the Object ID (not the Application ID).",
+        "constraints": {
+          "required": true,
+          "regex": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "validationMessage": "Must be a valid GUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)."
+        }
+      }
+    ],
+    "steps": [
+      {
+        "name": "optionalRoles",
+        "label": "Logs Ingestion Source",
+        "elements": [
+          {
+            "name": "infoBox",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "icon": "Info",
+              "text": "Select the subscription and the log source (Blob Storage account, Event Hub namespace, or Log Analytics workspace). Blast will collect all logs from the selected source every 15 minutes."
+            }
+          },
+          {
+            "name": "subscriptionsApi",
+            "type": "Microsoft.Solutions.ArmApiControl",
+            "request": {
+              "method": "GET",
+              "path": "/subscriptions?api-version=2020-01-01"
+            }
+          },
+          {
+            "name": "sourceSubscription",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Source subscription",
+            "toolTip": "Select the subscription that contains the log source resource. Leave blank to skip the resource-scoped role assignment.",
+            "constraints": {
+              "allowedValues": "[map(steps('optionalRoles').subscriptionsApi.value, (item) => parse(concat('{\"label\":\"', item.displayName, '\",\"description\":\"', item.subscriptionId, '\",\"value\":\"', item.subscriptionId, '\"}')))]",
+              "required": false
+            }
+          },
+          {
+            "name": "sourceType",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Source type",
+            "toolTip": "Choose the kind of resource Blast will collect logs from.",
+            "visible": "[not(empty(coalesce(steps('optionalRoles').sourceSubscription, '')))]",
+            "constraints": {
+              "allowedValues": [
+                { "label": "Blob Storage", "value": "storage" },
+                { "label": "Event Hub Namespace", "value": "eventhub" },
+                { "label": "Log Analytics Workspace", "value": "loganalytics" }
+              ],
+              "required": false
+            }
+          },
+          {
+            "name": "sourceResourcesApi",
+            "type": "Microsoft.Solutions.ArmApiControl",
+            "request": {
+              "method": "GET",
+              "path": "[if(or(empty(coalesce(steps('optionalRoles').sourceSubscription, '')), empty(coalesce(steps('optionalRoles').sourceType, ''))), '/subscriptions?api-version=2020-01-01', if(equals(steps('optionalRoles').sourceType, 'storage'), concat('/subscriptions/', steps('optionalRoles').sourceSubscription, '/providers/Microsoft.Storage/storageAccounts?api-version=2023-01-01'), if(equals(steps('optionalRoles').sourceType, 'eventhub'), concat('/subscriptions/', steps('optionalRoles').sourceSubscription, '/providers/Microsoft.EventHub/namespaces?api-version=2021-11-01'), concat('/subscriptions/', steps('optionalRoles').sourceSubscription, '/providers/Microsoft.OperationalInsights/workspaces?api-version=2022-10-01'))))]"
+            }
+          },
+          {
+            "name": "sourceResource",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Source resource",
+            "toolTip": "Pick the specific resource Blast will collect logs from. The list is populated based on the selected subscription and source type.",
+            "visible": "[and(not(empty(coalesce(steps('optionalRoles').sourceSubscription, ''))), not(empty(coalesce(steps('optionalRoles').sourceType, ''))))]",
+            "constraints": {
+              "allowedValues": "[if(or(empty(coalesce(steps('optionalRoles').sourceSubscription, '')), empty(coalesce(steps('optionalRoles').sourceType, ''))), parse('[]'), map(coalesce(steps('optionalRoles').sourceResourcesApi.value, parse('[]')), (item) => parse(concat('{\"label\":\"', item.name, '\",\"description\":\"', item.id, '\",\"value\":\"', item.id, '\"}'))))]",
+              "required": false
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "servicePrincipalObjectId": "[basics('servicePrincipalObjectId')]",
+      "storageAccountResourceId": "[if(equals(coalesce(steps('optionalRoles').sourceType, ''), 'storage'), coalesce(steps('optionalRoles').sourceResource, ''), '')]",
+      "eventHubNamespaceResourceId": "[if(equals(coalesce(steps('optionalRoles').sourceType, ''), 'eventhub'), coalesce(steps('optionalRoles').sourceResource, ''), '')]",
+      "logAnalyticsWorkspaceResourceId": "[if(equals(coalesce(steps('optionalRoles').sourceType, ''), 'loganalytics'), coalesce(steps('optionalRoles').sourceResource, ''), '')]"
+    }
+  }
+}

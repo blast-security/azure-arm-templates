@@ -1,0 +1,200 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "Assigns Reader (and optional granular roles) to the Blast service principal at the management group scope. Reader inherits to all child subscriptions. Optional roles can target specific resources by resource ID."
+  },
+  "parameters": {
+    "servicePrincipalObjectId": {
+      "type": "string",
+      "metadata": {
+        "description": "The Object ID of the Blast service principal in your tenant. Find it in Azure Portal > Entra ID > Enterprise Applications > search for the app > Object ID."
+      }
+    },
+    "roleDefinitionId": {
+      "type": "string",
+      "defaultValue": "acdd72a7-3385-48ef-bd42-f606fba81ae7",
+      "metadata": {
+        "description": "The RBAC role definition ID to assign. Default is Reader (acdd72a7-3385-48ef-bd42-f606fba81ae7)."
+      }
+    },
+    "enableMonitoringReader": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Also assign Monitoring Reader at management group scope (inherits to all child subscriptions)."
+      }
+    },
+    "storageAccountResourceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Full resource ID of the storage account to grant Storage Blob Data Reader. Leave empty to skip."
+      }
+    },
+    "eventHubNamespaceResourceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Full resource ID of the Event Hub namespace to grant Azure Event Hubs Data Receiver. Leave empty to skip."
+      }
+    },
+    "logAnalyticsWorkspaceResourceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Full resource ID of the Log Analytics workspace to grant Log Analytics Reader. Leave empty to skip."
+      }
+    }
+  },
+  "variables": {
+    "monitoringReaderId":      "43d0d8ad-25c7-4714-9337-8ba259a9fe05",
+    "storageBlobDataReaderId": "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1",
+    "eventHubsDataReceiverId": "a638d3c7-ab3a-418d-83e6-5f17a39d4fde",
+    "logAnalyticsReaderId":    "73c42c96-874c-492b-b04d-ab87d138a893"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(managementGroup().id, parameters('servicePrincipalObjectId'), parameters('roleDefinitionId'))]",
+      "properties": {
+        "roleDefinitionId": "[tenantResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionId'))]",
+        "principalId": "[parameters('servicePrincipalObjectId')]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "condition": "[parameters('enableMonitoringReader')]",
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(managementGroup().id, parameters('servicePrincipalObjectId'), variables('monitoringReaderId'))]",
+      "properties": {
+        "roleDefinitionId": "[tenantResourceId('Microsoft.Authorization/roleDefinitions', variables('monitoringReaderId'))]",
+        "principalId": "[parameters('servicePrincipalObjectId')]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "condition": "[not(empty(parameters('storageAccountResourceId')))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "storage-blob-data-reader",
+      "subscriptionId": "[if(empty(parameters('storageAccountResourceId')), '00000000-0000-0000-0000-000000000000', split(parameters('storageAccountResourceId'), '/')[2])]",
+      "resourceGroup": "[if(empty(parameters('storageAccountResourceId')), 'placeholder-rg', split(parameters('storageAccountResourceId'), '/')[4])]",
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": { "scope": "inner" },
+        "parameters": {
+          "resourceId": { "value": "[parameters('storageAccountResourceId')]" },
+          "principalId": { "value": "[parameters('servicePrincipalObjectId')]" }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "resourceId": { "type": "string" },
+            "principalId": { "type": "string" }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('resourceId'), parameters('principalId'), '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')]",
+              "scope": "[parameters('resourceId')]",
+              "properties": {
+                "roleDefinitionId": "/providers/Microsoft.Authorization/roleDefinitions/2a2b9908-6ea1-4ae2-8e65-a410df84e7d1",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "[not(empty(parameters('eventHubNamespaceResourceId')))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "event-hubs-data-receiver",
+      "subscriptionId": "[if(empty(parameters('eventHubNamespaceResourceId')), '00000000-0000-0000-0000-000000000000', split(parameters('eventHubNamespaceResourceId'), '/')[2])]",
+      "resourceGroup": "[if(empty(parameters('eventHubNamespaceResourceId')), 'placeholder-rg', split(parameters('eventHubNamespaceResourceId'), '/')[4])]",
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": { "scope": "inner" },
+        "parameters": {
+          "resourceId": { "value": "[parameters('eventHubNamespaceResourceId')]" },
+          "principalId": { "value": "[parameters('servicePrincipalObjectId')]" }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "resourceId": { "type": "string" },
+            "principalId": { "type": "string" }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('resourceId'), parameters('principalId'), 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde')]",
+              "scope": "[parameters('resourceId')]",
+              "properties": {
+                "roleDefinitionId": "/providers/Microsoft.Authorization/roleDefinitions/a638d3c7-ab3a-418d-83e6-5f17a39d4fde",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "[not(empty(parameters('logAnalyticsWorkspaceResourceId')))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "log-analytics-reader",
+      "subscriptionId": "[if(empty(parameters('logAnalyticsWorkspaceResourceId')), '00000000-0000-0000-0000-000000000000', split(parameters('logAnalyticsWorkspaceResourceId'), '/')[2])]",
+      "resourceGroup": "[if(empty(parameters('logAnalyticsWorkspaceResourceId')), 'placeholder-rg', split(parameters('logAnalyticsWorkspaceResourceId'), '/')[4])]",
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": { "scope": "inner" },
+        "parameters": {
+          "resourceId": { "value": "[parameters('logAnalyticsWorkspaceResourceId')]" },
+          "principalId": { "value": "[parameters('servicePrincipalObjectId')]" }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "resourceId": { "type": "string" },
+            "principalId": { "type": "string" }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('resourceId'), parameters('principalId'), '73c42c96-874c-492b-b04d-ab87d138a893')]",
+              "scope": "[parameters('resourceId')]",
+              "properties": {
+                "roleDefinitionId": "/providers/Microsoft.Authorization/roleDefinitions/73c42c96-874c-492b-b04d-ab87d138a893",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "roleAssignmentId": {
+      "type": "string",
+      "value": "[guid(managementGroup().id, parameters('servicePrincipalObjectId'), parameters('roleDefinitionId'))]"
+    },
+    "managementGroupId": {
+      "type": "string",
+      "value": "[managementGroup().id]"
+    }
+  }
+}
