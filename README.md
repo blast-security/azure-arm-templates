@@ -8,7 +8,7 @@ Blast connects to your Azure tenant using a multi-tenant Azure AD application. A
 
 | Access | Granted via | Covers |
 |--------|------------|--------|
-| **Graph API** | Admin consent (Step 1 — done with your Blast representative) | Audit logs, sign-in logs, directory data |
+| **Graph API** | Admin consent (Step 1 — done with your Blast representative) | Audit logs, sign-in logs, directory data, security policies |
 | **Azure Resource Manager** | RBAC role assignment (this repo) | Resource inventory — subscriptions, VMs, storage, networks, etc. |
 
 **This repository handles the RBAC role assignment (Step 2).** Step 1 (admin consent) is described below — your Blast representative will normally walk you through it, but the URL is included here for reference and self-service.
@@ -36,7 +36,7 @@ Click **Accept**. This creates the `blast-collector` enterprise application in y
 
 - `AuditLog.Read.All` — read audit logs and sign-in logs
 - `Directory.Read.All` — read directory data
-- `Policy.Read.All` — read security policies
+- `Policy.Read.All` — read security policies (authorization, conditional access, security defaults, cross-tenant access)
 
 > **Why a tenant-specific URL and not `/common/`?** Some tenants have Conditional Access policies that block the generic consent endpoint. The tenant-specific URL avoids that.
 
@@ -226,7 +226,7 @@ chmod +x setup.sh && ./setup.sh
 
 1. Creates an app registration (`blast-collector`) in your Entra ID tenant
 2. Creates a client secret with a 24-month expiration
-3. Grants Graph API permissions — `AuditLog.Read.All` + `Directory.Read.All`
+3. Grants Graph API permissions — `AuditLog.Read.All` + `Directory.Read.All` + `Policy.Read.All`
 4. Grants admin consent for those permissions
 5. Assigns the **Reader** role on your subscription(s) or management group
 6. Outputs the credentials to share with Blast

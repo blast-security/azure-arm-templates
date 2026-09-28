@@ -8,7 +8,7 @@
 # What it does:
 #   1. Creates an App Registration in your Entra ID tenant
 #   2. Creates a client secret (24-month expiration)
-#   3. Grants Graph API permissions (AuditLog.Read.All + Directory.Read.All)
+#   3. Grants Graph API permissions (AuditLog.Read.All + Directory.Read.All + Policy.Read.All)
 #   4. Grants admin consent for those permissions
 #   5. Assigns the Reader role on your subscription(s) or management group
 #
@@ -34,6 +34,7 @@ SECRET_EXPIRY_YEARS=2
 GRAPH_API_ID="00000003-0000-0000-c000-000000000000"  # Microsoft Graph
 AUDIT_LOG_READ_ALL="b0afded3-3588-46d8-8b3d-9842eff778da"
 DIRECTORY_READ_ALL="7ab1d382-f21e-4acd-a863-ba3e13f7da61"
+POLICY_READ_ALL="246dd0d5-5bd0-4def-940b-0421030a5b68"
 READER_ROLE_ID="acdd72a7-3385-48ef-bd42-f606fba81ae7"
 
 # --- Colors ---
@@ -162,6 +163,14 @@ az ad app permission add \
     2>/dev/null || true
 print_ok "Added Directory.Read.All"
 
+# Add Policy.Read.All
+az ad app permission add \
+    --id "$CLIENT_ID" \
+    --api "$GRAPH_API_ID" \
+    --api-permissions "${POLICY_READ_ALL}=Role" \
+    2>/dev/null || true
+print_ok "Added Policy.Read.All"
+
 # --- Step 4: Grant Admin Consent ---
 print_step 4 "Granting Admin Consent"
 
@@ -277,7 +286,7 @@ echo "  - Share these values securely (not via plain email)"
 echo ""
 echo -e "${BOLD}What was configured:${NC}"
 echo "  App Registration:    ${APP_NAME}"
-echo "  Graph API Permissions: AuditLog.Read.All, Directory.Read.All"
+echo "  Graph API Permissions: AuditLog.Read.All, Directory.Read.All, Policy.Read.All"
 echo "  RBAC Role:           Reader"
 echo ""
 echo -e "${BOLD}To revoke access later:${NC}"
